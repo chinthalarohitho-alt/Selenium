@@ -1,0 +1,542 @@
+package utilze;
+
+import Initialization.FrameWorkInitialization;
+import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
+/**
+ * Playwright utility class for browser automation.
+ * Provides reusable methods for clicking, filling, assertions, and navigation.
+ * All methods throw exceptions to properly fail tests on errors.
+ */
+public class playwright extends FrameWorkInitialization {
+    private static final Logger logger = LoggerFactory.getLogger(playwright.class);
+    private static final Random random = new Random();
+
+    // ==================== CLICK ACTIONS ====================
+
+    /**
+     * Clicks on an element. Waits for element to be visible and clickable.
+     * Throws exception if element not found or not clickable.
+     */
+    public void click(String locator) {
+        try {
+            logger.debug("Clicking element: {}", locator);
+            getPage().locator(locator).click();
+            logger.debug("Clicked successfully: {}", locator);
+        } catch (TimeoutError e) {
+            String error = String.format("Element not found or not clickable within timeout: %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to click element: %s. Reason: %s", locator, e.getMessage());
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Clicks element multiple times with delay between clicks.
+     * Use for double-click (clickCount=2) or triple-click (clickCount=3).
+     */
+    public void clickWithOptions(String locator, int clickCount, int delay) {
+        try {
+            logger.debug("Clicking element {} with count={}, delay={}ms", locator, clickCount, delay);
+            getPage().locator(locator).click(new Locator.ClickOptions()
+                    .setClickCount(clickCount)
+                    .setDelay(delay));
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to click %s with options", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Double-clicks on an element.
+     * Useful for opening files or folders.
+     */
+    public void doubleClick(String locator) {
+        try {
+            logger.debug("Double clicking: {}", locator);
+            getPage().locator(locator).dblclick();
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to double click: %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Right-clicks on element to open context menu.
+     */
+    public void rightClick(String locator) {
+        try {
+            logger.debug("Right clicking: {}", locator);
+            getPage().locator(locator).click(new Locator.ClickOptions().setButton(MouseButton.RIGHT));
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to right click: %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    // ==================== INPUT/TEXT METHODS ====================
+
+    /**
+     * Fills input field with text. Clears existing value first.
+     * Fastest way to enter text. Use for input fields, textareas.
+     */
+    public void fill(String locator, String text) {
+        if (text == null) {
+            throw new IllegalArgumentException("Text cannot be null for locator: " + locator);
+        }
+
+        try {
+            logger.debug("Filling '{}' with text: '{}'", locator, text);
+            getPage().locator(locator).fill(text);
+            logger.debug("Filled successfully: {}", locator);
+        } catch (TimeoutError e) {
+            String error = String.format("Element not found or not editable within timeout: %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to fill '%s' with text '%s'. Reason: %s",
+                    locator, text, e.getMessage());
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Clears input field then fills with new text.
+     * Use when fill() alone doesn't clear properly.
+     */
+    public void clearAndFill(String locator, String text) {
+        try {
+            logger.debug("Clearing and filling '{}' with: '{}'", locator, text);
+            getPage().locator(locator).clear();
+            getPage().locator(locator).fill(text);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to clear and fill %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Types text character by character with delay.
+     * Use for live search or triggering keypress events. Slower than fill().
+     */
+    public void type(String locator, String text, int delayMs) {
+        try {
+            logger.debug("Typing '{}' into {} with delay {}ms", text, locator, delayMs);
+            getPage().locator(locator).pressSequentially(text,
+                    new Locator.PressSequentiallyOptions().setDelay(delayMs));
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to type into %s", locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Presses keyboard key on element (Enter, Tab, Escape, etc).
+     * Use for submitting forms, navigating fields, keyboard shortcuts.
+     */
+    public void pressKey(String locator, String key) {
+        try {
+            logger.debug("Pressing key '{}' on element: {}", key, locator);
+            getPage().locator(locator).press(key);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to press key '%s' on %s", key, locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    // ==================== ASSERTIONS ====================
+
+    /**
+     * Asserts element is visible on page.
+     * Waits up to 5 seconds. Fails test if not visible.
+     */
+    public void assertVisible(String locator) {
+        try {
+            logger.debug("Asserting visibility of: {}", locator);
+            assertThat(getPage().locator(locator)).isVisible();
+            logger.debug("Element is visible: {}", locator);
+        } catch (AssertionError e) {
+            String error = String.format("Element is NOT visible: %s", locator);
+            logger.error(error);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Asserts element is visible on page.
+     * Waits up to 5 seconds. Fails test if not visible.
+     */
+    public void assertIsNotVisible(String locator) {
+        try {
+            logger.debug("Asserting for not visibility of: {}", locator);
+            assertThat(getPage().locator(locator)).not().isVisible();
+            logger.debug("Element is not visible: {}", locator);
+        } catch (AssertionError e) {
+            String error = String.format("Element is visible: %s", locator);
+            logger.error(error);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Asserts element has exact text (case-sensitive).
+     * Shows expected vs actual text if fails.
+     */
+    public void assertHasText(String locator, String expectedText) {
+        try {
+            logger.debug("Asserting text '{}' for element: {}", expectedText, locator);
+            assertThat(getPage().locator(locator)).hasText(expectedText);
+            logger.debug("Text assertion passed for: {}", locator);
+        } catch (AssertionError e) {
+            String actualText = getText(locator);
+            String error = String.format(
+                    "Text mismatch for %s.%nExpected: '%s'%nActual: '%s'",
+                    locator, expectedText, actualText
+            );
+            logger.error(error);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Asserts element contains text (partial match).
+     * Element can have additional text before/after.
+     */
+    public void assertContainsText(String locator, String text) {
+        try {
+            logger.debug("Asserting '{}' contains text: '{}'", locator, text);
+            assertThat(getPage().locator(locator)).containsText(text);
+        } catch (AssertionError e) {
+            String actualText = getText(locator);
+            String error = String.format(
+                    "Text '%s' not found in %s.%nActual text: '%s'",
+                    text, locator, actualText
+            );
+            logger.error(error);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Asserts current page URL matches expected URL.
+     * Shows expected vs actual URL if fails.
+     */
+    public void assertPageHasURL(String url) {
+        try {
+            logger.debug("Asserting page URL: {}", url);
+            assertThat(getPage()).hasURL(url);
+        } catch (AssertionError e) {
+            String actualUrl = getCurrentUrl();
+            String error = String.format(
+                    "URL mismatch.%nExpected: %s%nActual: %s",
+                    url, actualUrl
+            );
+            logger.error(error);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    // ==================== SAFE METHODS (NON-CRITICAL) ====================
+
+    /**
+     * Checks if element is visible. Returns false instead of throwing.
+     * Use for optional elements that may or may not exist.
+     */
+    public boolean isVisibleSafe(String locator) {
+        try {
+            return getPage().locator(locator).isVisible();
+        } catch (Exception e) {
+            logger.warn("Error checking visibility for {}: {}", locator, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Gets text from element. Returns empty string if fails.
+     * Use when text is optional and shouldn't fail test.
+     */
+    public String getTextSafe(String locator) {
+        try {
+            return getPage().locator(locator).textContent();
+        } catch (Exception e) {
+            logger.warn("Error getting text from {}: {}", locator, e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Gets attribute value. Returns null if fails.
+     * Use for optional attributes that may not exist.
+     */
+    public String getAttributeSafe(String locator, String attributeName) {
+        try {
+            return getPage().locator(locator).getAttribute(attributeName);
+        } catch (Exception e) {
+            logger.warn("Error getting attribute '{}' from {}: {}",
+                    attributeName, locator, e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== WAIT METHODS ====================
+
+    /**
+     * Waits for element to become visible with custom timeout.
+     * Polls every 500ms. Fails test if timeout exceeded.
+     */
+    public void waitForElementVisibility(String locator, int timeoutMs) {
+        try {
+            logger.debug("Waiting for element visibility: {} (timeout: {}ms)", locator, timeoutMs);
+            getPage().locator(locator).waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(timeoutMs));
+            logger.debug("Element became visible: {}", locator);
+        } catch (TimeoutError e) {
+            String error = String.format(
+                    "Element did NOT become visible within %dms: %s",
+                    timeoutMs, locator
+            );
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    /**
+     * Waits for element visibility with 30 second default timeout.
+     */
+    public void waitForElementVisibility(String locator) {
+        waitForElementVisibility(locator, 30000);
+    }
+
+    /**
+     * Waits for page to finish loading.
+     * Use after navigation or form submission.
+     */
+    public void waitForLoadState() {
+        logger.debug("Waiting for page load state");
+        getPage().waitForLoadState(LoadState.LOAD);
+    }
+
+    /**
+     * Waits for all network activity to stop (no requests for 500ms).
+     * Most reliable wait. Use after API calls or dynamic content loading.
+     */
+    public void waitForNetworkIdle() {
+        logger.debug("Waiting for network idle");
+        getPage().waitForLoadState(LoadState.NETWORKIDLE);
+    }
+
+    // ==================== SCREENSHOT METHODS ====================
+
+    /**
+     * Takes screenshot and saves to file. Throws if fails.
+     * File path must include extension (.png, .jpg).
+     */
+    public void takeScreenshot(String filePath) {
+        try {
+            logger.debug("Taking screenshot: {}", filePath);
+            getPage().screenshot(new Page.ScreenshotOptions().setPath(Paths.get(filePath)));
+            logger.info("Screenshot saved: {}", filePath);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to save screenshot to: %s", filePath);
+            logger.error(error, e);
+            throw new RuntimeException(error, e);
+        }
+    }
+
+    /**
+     * Takes screenshot and saves to file. Logs warning if fails.
+     * Safe for teardown - doesn't fail test if screenshot fails.
+     */
+    public void takeScreenshotSafe(String filePath) {
+        try {
+            getPage().screenshot(new Page.ScreenshotOptions().setPath(Paths.get(filePath)));
+            logger.info("Screenshot saved: {}", filePath);
+        } catch (Exception e) {
+            logger.warn("Failed to save screenshot to {}: {}", filePath, e.getMessage());
+        }
+    }
+
+    // ==================== FILE UPLOAD ====================
+
+    /**
+     * Uploads file to input element. Validates file exists first.
+     * Throws error if file not found or upload fails.
+     */
+    public void uploadFile(String locator, String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            throw new IllegalArgumentException("File path cannot be null or empty");
+        }
+
+        Path path = Paths.get(filePath);
+        if (!path.toFile().exists()) {
+            throw new IllegalArgumentException("File does not exist: " + filePath);
+        }
+
+        try {
+            logger.debug("Uploading file '{}' to element: {}", filePath, locator);
+            getPage().locator(locator).setInputFiles(path);
+            logger.info("File uploaded successfully: {}", filePath);
+        } catch (PlaywrightException e) {
+            String error = String.format("Failed to upload file '%s' to %s", filePath, locator);
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    // ==================== NAVIGATION ====================
+
+    /**
+     * Navigates to URL. Single attempt, throws if fails.
+     * Use navigateTo(url, retries) for retry logic.
+     */
+    public void navigateTo(String url) {
+        navigateTo(url, 1);
+    }
+
+    /**
+     * Navigates to URL with retry logic. Retries on failure.
+     * Waits 1 second between retries. Throws after max retries.
+     */
+    public void navigateTo(String url, int maxRetries) {
+        if (url == null || url.isEmpty()) {
+            throw new IllegalArgumentException("URL cannot be null or empty");
+        }
+
+        int attempt = 0;
+        Exception lastException = null;
+
+        while (attempt < maxRetries) {
+            try {
+                attempt++;
+                logger.info("Navigating to: {} (attempt {}/{})", url, attempt, maxRetries);
+                getPage().navigate(url);
+                logger.info("Navigation successful: {}", url);
+                return;
+            } catch (PlaywrightException e) {
+                lastException = e;
+                logger.warn("Navigation attempt {} failed for {}: {}",
+                        attempt, url, e.getMessage());
+
+                if (attempt < maxRetries) {
+                    logger.info("Retrying navigation...");
+                    waitForTimeout(1000);
+                }
+            }
+        }
+
+        String error = String.format(
+                "Failed to navigate to %s after %d attempts",
+                url, maxRetries
+        );
+        logger.error(error, lastException);
+        throw new AssertionError(error, lastException);
+    }
+
+    // ==================== SELECT/DROPDOWN ====================
+
+    /**
+     * Selects dropdown option by value attribute.
+     * Example: <option value="usa">United States</option> → selectByValue("#country", "usa")
+     */
+    public void selectByValue(String locator, String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Value cannot be null for: " + locator);
+        }
+
+        try {
+            logger.debug("Selecting option '{}' in dropdown: {}", value, locator);
+            getPage().locator(locator).selectOption(value);
+            logger.debug("Option selected successfully");
+        } catch (PlaywrightException e) {
+            String error = String.format(
+                    "Failed to select option '%s' in dropdown %s",
+                    value, locator
+            );
+            logger.error(error, e);
+            throw new AssertionError(error, e);
+        }
+    }
+
+    // ==================== UTILITY METHODS ====================
+
+    /**
+     * Generates random string with length between min and max.
+     * Example: generateUniqueString(5, 10) → returns 5-10 character string
+     */
+    public static String generateUniqueString(int minLength, int maxLength) {
+        if (minLength < 1 || maxLength < minLength) {
+            throw new IllegalArgumentException(
+                    String.format("Invalid length range: min=%d, max=%d", minLength, maxLength)
+            );
+        }
+        int length = minLength + random.nextInt(maxLength - minLength + 1);
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        return uuid.substring(0, Math.min(length, uuid.length()));
+    }
+
+    /**
+     * Generates random email address.
+     * Example: test_a1b2c3d4@test.com
+     */
+    public static String generateRandomEmail() {
+        return "test_" + generateUniqueString(8, 12) + "@test.com";
+    }
+
+    /**
+     * Generates random number with specified digits.
+     * Example: generateRandomNumber(5) → "47382"
+     */
+    public static String generateRandomNumber(int digits) {
+        if (digits < 1 || digits > 18) {
+            throw new IllegalArgumentException("Digits must be between 1 and 18");
+        }
+        StringBuilder number = new StringBuilder();
+        for (int i = 0; i < digits; i++) {
+            number.append(random.nextInt(10));
+        }
+        return number.toString();
+    }
+
+    /**
+     * Gets text content from element. Throws if fails.
+     * Use getTextSafe() if text is optional.
+     */
+    public String getText(String locator) {
+        return getPage().locator(locator).textContent();
+    }
+
+    /**
+     * Gets current page URL.
+     */
+    public String getCurrentUrl() {
+        return getPage().url();
+    }
+
+    /**
+     * Waits for specified milliseconds. Use sparingly - prefer smart waits.
+     */
+    public void waitForTimeout(int milliseconds) {
+        getPage().waitForTimeout(milliseconds);
+    }
+
+}

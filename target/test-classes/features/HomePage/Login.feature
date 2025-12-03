@@ -40,3 +40,4 @@ Feature: From Page - To Test Login
 #      | blank email         | without alphabets    | Email is required                | Password must contain uppercase letter and lowercase letter                    |
 #      | valid               | without lower caps   | null                             | Password must contain at least one lowercase letter                            |
 #      | without at the rate | without capital caps | Email must contain '@' symbol    | Password must contain at least one uppercase letter                            |
+

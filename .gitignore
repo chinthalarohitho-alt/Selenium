@@ -1,38 +1,36 @@
-../target/
-!Selenium/.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# Build
+target/
+*.class
 
-### IntelliJ IDEA ###
-Selenium/.idea/modules.xml
-Selenium/.idea/jarRepositories.xml
-Selenium/.idea/compiler.xml
-Selenium/.idea/libraries/
-*.iws
+# IDEs
+.idea/
 *.iml
+*.iws
 *.ipr
-
-### Eclipse ###
-.apt_generated
+.vscode/
+.settings/
 .classpath
-.factorypath
 .project
-.settings
-.springBeans
-.sts4-cache
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
+# Test Reports
+screenshots/
+allure-results/
+allure-report/
+cucumber-reports/
+playwright-report/
+test-results/
+*.log
 
-### VS Code ###
-Selenium/.vscode/
-
-### Mac OS ###
+# OS Files
 .DS_Store
+Thumbs.db
+
+# Environment
+.env
+**/credentials.properties
+**/secrets.properties
+
+# Temp files
+*.tmp
+*.swp
+*~

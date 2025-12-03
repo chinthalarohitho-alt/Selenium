@@ -1,5 +1,7 @@
 package pages.HomePage;
 
-public class LoginPath {
+import pages.common.GlobalPaths;
+
+public class LoginPath extends GlobalPaths {
 
 }

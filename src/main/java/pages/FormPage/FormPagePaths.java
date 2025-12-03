@@ -1,10 +1,10 @@
 package pages.FormPage;
 
-public class FormPagePaths {
+import pages.common.GlobalPaths;
 
-    public String containsText(String TagName, String Key) {
-        return "//"+TagName+"[contains(text(),'"+Key+"')]";
-    }
+public class FormPagePaths extends GlobalPaths {
 
-    public String AtTheRateInvalidMessage = "//p[contains(text(),\"Email must contain '@' symbol\")]";
+    // Error message locator
+    public final String AT_THE_RATE_ERROR = "//p[contains(text(),\"Email must contain '@' symbol\")]";
+
 }

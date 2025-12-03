@@ -1,20 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: TestSuite
 -------------------------------------------------------------------------------
-Tests run: 2, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 25.657 s <<< FAILURE! - in TestSuite
-runner.CucumberRunnerTest.runScenario["Verify Buttons functionality", "Elements Page - Buttons and Alerts"](1)  Time elapsed: 11.785 s  <<< FAILURE!
-java.lang.AssertionError: Expected URL to contain 'elements' but was: https://alphatestingplayground.vercel.app/
-	at org.junit.Assert.fail(Assert.java:89)
-	at org.junit.Assert.assertTrue(Assert.java:42)
-	at pages.Elements.ButtonsPage.verifyOnElementsPage(ButtonsPage.java:52)
-	at steps.Elements.ButtonsSteps.userShouldBeOnTheElementsPage(ButtonsSteps.java:18)
-	at ✽.user should be on the Elements page(file:///Users/chinthalarohithkumar/Desktop/fixes/selenium/src/test/resources/features/Elements/Buttons.feature:11)
-
-runner.CucumberRunnerTest.runScenario["Verify Alerts functionality", "Elements Page - Buttons and Alerts"](2)  Time elapsed: 11.526 s  <<< FAILURE!
-java.lang.AssertionError: Expected URL to contain 'elements' but was: https://alphatestingplayground.vercel.app/
-	at org.junit.Assert.fail(Assert.java:89)
-	at org.junit.Assert.assertTrue(Assert.java:42)
-	at pages.Elements.ButtonsPage.verifyOnElementsPage(ButtonsPage.java:52)
-	at steps.Elements.ButtonsSteps.userShouldBeOnTheElementsPage(ButtonsSteps.java:18)
-	at ✽.user should be on the Elements page(file:///Users/chinthalarohithkumar/Desktop/fixes/selenium/src/test/resources/features/Elements/Buttons.feature:11)
-
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.37 s - in TestSuite

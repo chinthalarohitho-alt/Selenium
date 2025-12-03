@@ -1,28 +1,25 @@
 package pages.HomePage;
 
-import org.junit.Assert;
+import config.Settings;
 import pages.FormPage.Form;
 import pages.FormPage.FormPagePaths;
-import utilze.selenium;
+import utilze.playwright;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
-public class Login{
+public class Login extends playwright {
     Properties prop = new Properties();
     Form form = new Form();
     LoginPath loginPath = new LoginPath();
     FormPagePaths FormPagepaths = new FormPagePaths();
 
-    public void validateUserIsOnHomePage() throws IOException {
+    public void validateUserIsOnHomePage() {
         try {
-            FileInputStream PropUrl = new FileInputStream("src/main/resources/alpha.properties");
-            prop.load(PropUrl);
-            String ActualUrl = selenium.driver.getCurrentUrl();
-            String ExpectedUrl = prop.getProperty("Url");
-            Assert.assertEquals(ExpectedUrl, ActualUrl);
-        }catch (IOException e){
-            throw new IOException(e.getMessage());
+            assertPageHasURL(Settings.Url);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
         }
     }
 
@@ -34,9 +31,9 @@ public class Login{
             case "blank email" -> "";
             default -> throw new RuntimeException("Please enter the valid option in the email address line");
         };
-        selenium.IdLocator("email-address").sendKeys(Email);
-    }
 
+        fill("#email-address", Email);
+    }
 
     public void EnterThePassword(String value) {
         String Password = switch (value.toLowerCase()) {
@@ -50,32 +47,36 @@ public class Login{
             case "only capital caps" -> "AUTOMATION";
             case "only numbers" -> "274652645237";
             case "blank password" -> "";
-            default -> throw new RuntimeException("Please enter the valid option in the email address line");
+            default -> throw new RuntimeException("Please enter the valid option in the password field");
         };
-        selenium.IdLocator("password").sendKeys(Password);
+
+        fill("#password", Password);
     }
 
     public void clickOnTheButton() {
-        selenium.button("Sign In").click();
+        click("button:has-text('Sign In')");
     }
 
-
     public void userIsOnTheOverviewPage() {
-        form.UserIsOnOverViewPage();
-        selenium.wait(1);
+        form.userIsOnOverviewPage();
+        waitForTimeout(1000);
     }
 
     public void validateErrorMessage(String message) {
-        if(message.equals("null")){
-            Assert.assertTrue(true);
-        }else if(message.equals("Email must contain '@' symbol")){
-              Assert.assertTrue(selenium.elementVisibility(FormPagepaths.AtTheRateInvalidMessage));
-        }else {
-            Assert.assertTrue(selenium.elementVisibility(FormPagepaths.containsText("p",message)));
+        if (message.equals("null")) {
+            // No error message expected
+            return;
+        } else if (message.equals("Email must contain '@' symbol")) {
+            // Using custom assertion method
+            assertVisible(FormPagepaths.AT_THE_RATE_ERROR);
+        } else {
+            // Using custom assertion with text
+            assertHasText(loginPath.exactText("p",message), message);
         }
     }
 
     public void userShouldNotLandOnOverviewPage() {
-        Assert.assertFalse(selenium.elementVisibility(FormPagepaths.containsText("button","Submit Form")));
+        // Using custom assertion method with negation
+        assertIsNotVisible(loginPath.exactText("button","Submit Form"));
     }
 }

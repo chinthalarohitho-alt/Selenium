@@ -1,159 +1,346 @@
 package Initialization;
 
 import ch.qos.logback.classic.Logger;
-import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.edge.EdgeDriver;
-import org.openqa.selenium.edge.EdgeOptions;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.safari.SafariDriver;
+import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.options.ViewportSize;
+import config.Settings;
+import config.frameWorkConfig;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.time.Duration;
-import java.util.Properties;
+import java.io.InputStream;
+import java.util.*;
 
 public class FrameWorkInitialization {
-    public static WebDriver driver;
-//property files
-    Properties prop = new Properties();
-    Properties alpha = new Properties();
-    Properties beta = new Properties();
-    Properties cloud = new Properties();
-    private Properties currentEnvProperties;
+
+    private final frameWorkConfig config;
+    private final Properties prop = new Properties();
+    private final Properties envProperties = new Properties();
     private static final Logger logger = (Logger) LoggerFactory.getLogger(FrameWorkInitialization.class);
 
+    // Default values
+    private static final String DEFAULT_BROWSER = "chrome";
+    private static final boolean DEFAULT_HEADLESS = false;
+    private static final String DEFAULT_LOCALE = "en-US";
+    private static final String DEFAULT_WINDOW_SIZE = "1280,800";
+    private static final int DEFAULT_TIMEOUT = 30000; // 30 seconds
+    private static final int DEFAULT_NAVIGATION_TIMEOUT = 30000; // 30 seconds
+
+    public FrameWorkInitialization() {
+        this.config = frameWorkConfig.getInstance();
+    }
+
+    /**
+     * Load properties from configuration files
+     */
     public void loadProperties() throws IOException {
-        try{
-            FileInputStream fis = new FileInputStream("src/main/config/BrowserConfig.properties");
-            FileInputStream alphaFile = new FileInputStream("src/main/resources/alpha.properties");
-            FileInputStream betaFile = new FileInputStream("src/main/resources/beta.properties");
-            FileInputStream cloudFile = new FileInputStream("src/main/resources/cloud.properties");
-            prop.load(fis);
-            alpha.load(alphaFile);
-            beta.load(betaFile);
-            cloud.load(cloudFile);
+        try {
+            // Load browser config
+            loadPropertyFile("src/main/java/config/BrowserConfig.properties", prop);
+
+            // Load environment-specific properties
+            String env = System.getProperty("env").toLowerCase();
+            String envFile = "src/main/resources/" + env + ".properties";
+            loadPropertyFile(envFile, envProperties);
+
+            logger.info("Loaded properties for environment: {}", env);
         } catch (IOException e) {
-            throw new IOException ("Failed to load properties file", e);
+            logger.error("Failed to load properties", e);
+            throw new IOException("Failed to load properties file: " + e.getMessage(), e);
         }
     }
 
-    public WebDriver getBrowser() {
-        String browserName = prop.getProperty("BrowserName");
-        if (browserName == null) {
-            throw new IllegalArgumentException("browserName not specified in config file");
+    /**
+     * Helper method to load property file
+     */
+    protected void loadPropertyFile(String filePath, Properties properties) throws IOException {
+        try (InputStream inputStream = new FileInputStream(filePath)) {
+            properties.load(inputStream);
+            logger.debug("Loaded property file: {}", filePath);
+        }
+    }
+
+    /**
+     * Initialize browser with configuration from properties
+     */
+    public void initializeBrowser() {
+        try {
+            // Read browser configuration
+            String browserName = prop.getProperty("BrowserName", DEFAULT_BROWSER);
+            boolean isHeadless = Boolean.parseBoolean(prop.getProperty("Headless_status", String.valueOf(DEFAULT_HEADLESS)));
+            String locale = prop.getProperty("Locale", DEFAULT_LOCALE);
+            String windowSize = prop.getProperty("window_size", DEFAULT_WINDOW_SIZE);
+
+            // Read timeout configurations
+            int defaultTimeout = Integer.parseInt(prop.getProperty("default_timeout", String.valueOf(DEFAULT_TIMEOUT)));
+            int navigationTimeout = Integer.parseInt(prop.getProperty("navigation_timeout", String.valueOf(DEFAULT_NAVIGATION_TIMEOUT)));
+
+            logger.info("Initializing browser - Name: {}, Headless: {}, Locale: {}, Window: {}",
+                    browserName, isHeadless, locale, windowSize);
+
+            // Configure launch options
+            BrowserType.LaunchOptions launchOptions = createLaunchOptions(isHeadless, windowSize);
+
+            // Get browser type and launch
+            BrowserType browserType = getBrowserType(browserName, launchOptions);
+            Browser browser = browserType.launch(launchOptions);
+            config.setBrowser(browser);
+
+            // Create browser context
+            BrowserContext context = createBrowserContext(browser, locale, windowSize);
+            config.setContext(context);
+
+            // Create page
+            Page page = context.newPage();
+            config.setPage(page);
+
+            // Set default timeouts
+            page.setDefaultTimeout(defaultTimeout);
+            page.setDefaultNavigationTimeout(navigationTimeout);
+
+            logger.info("Browser initialized successfully: {} (headless: {})", browserName, isHeadless);
+            logger.info("Timeouts set - Default: {}ms, Navigation: {}ms", defaultTimeout, navigationTimeout);
+
+        } catch (Exception e) {
+            logger.error("Failed to initialize browser", e);
+            throw new RuntimeException("Browser initialization failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Create launch options for browser
+     */
+    private BrowserType.LaunchOptions createLaunchOptions(boolean isHeadless, String windowSize) {
+        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
+                .setHeadless(isHeadless);
+
+        // Add custom arguments
+        List<String> args = new ArrayList<>();
+
+        // Add window size argument
+        if (windowSize != null && !windowSize.isEmpty()) {
+            args.add("--window-size=" + windowSize);
         }
 
-        boolean isHeadless = Boolean.parseBoolean(prop.getProperty("Headless_status", "false"));
-        String locale = prop.getProperty("Locale");
+        // Add custom arguments from properties
         String argValue = prop.getProperty("argValue");
-        String windowSize = prop.getProperty("window_size");
-
-
-        if (browserName.equalsIgnoreCase("chromium") || browserName.equalsIgnoreCase("chrome")) {
-            WebDriverManager.chromedriver().setup();
-            ChromeOptions options = new ChromeOptions();
-            if (!windowSize.isEmpty()) {
-                options.addArguments("--window-size="+windowSize);
+        if (argValue != null && !argValue.isEmpty()) {
+            String[] customArgs = argValue.split(",");
+            for (String arg : customArgs) {
+                args.add(arg.trim());
             }
-            if (isHeadless) {
-                options.addArguments("--headless=new");
-            }
-            if (locale != null && !locale.isEmpty()) {
-                options.addArguments("--lang=" + locale);
-            }
-
-            if (argValue != null && !argValue.isEmpty()) {
-                options.addArguments(argValue);
-            }
-            driver = new ChromeDriver(options);
-
-        } else if (browserName.equalsIgnoreCase("firefox")) {
-            WebDriverManager.firefoxdriver().setup();
-            FirefoxOptions options = new FirefoxOptions();
-            if (!windowSize.isEmpty()) {
-                options.addArguments("--window-size="+windowSize);
-            }
-            if (isHeadless) {
-                options.addArguments("--headless=new");
-            }
-            if (locale != null && !locale.isEmpty()) {
-                options.addArguments("--lang=" + locale);
-            }
-
-            if (argValue != null && !argValue.isEmpty()) {
-                options.addArguments(argValue);
-            }
-            driver = new FirefoxDriver(options);
-
-        } else if (browserName.equalsIgnoreCase("webkit") || browserName.equalsIgnoreCase("edge")) {
-            WebDriverManager.edgedriver().setup();
-            EdgeOptions options = new EdgeOptions();
-            if (!windowSize.isEmpty()) {
-                options.addArguments("--window-size="+windowSize);
-            }
-            if (isHeadless) {
-                options.addArguments("--headless=new");
-            }
-            if (locale != null && !locale.isEmpty()) {
-                options.addArguments("--lang=" + locale);
-            }
-
-            if (argValue != null && !argValue.isEmpty()) {
-                options.addArguments(argValue);
-            }
-            driver = new EdgeDriver(options);
-
-        } else if (browserName.equalsIgnoreCase("safari")) {
-            WebDriverManager.safaridriver().setup();
-            driver = new SafariDriver();  // Safari does not officially support headless mode, so no option here.
-        } else {
-            throw new IllegalArgumentException("Unknown browser: " + browserName);
         }
-        return driver;
-    }
 
-    private Properties env(){
-        // Get environment from system property, default to alpha if not set
-        String env = System.getProperty("env", "alpha").toLowerCase();
+        // Add common arguments for stability
+        args.add("--disable-blink-features=AutomationControlled"); // Hide automation
+        args.add("--no-sandbox"); // For Docker/CI environments
+        args.add("--disable-dev-shm-usage"); // For Docker/CI environments
 
-        switch (env) {
-            case "alpha":
-                currentEnvProperties = alpha;
-                break;
-            case "beta":
-                currentEnvProperties = beta;
-                break;
-            case "cloud":
-                currentEnvProperties = cloud;
-                break;
-            default:
-                logger.warn("Unknown environment '{}', defaulting to alpha", env);
-                currentEnvProperties = alpha;
+        if (!args.isEmpty()) {
+            launchOptions.setArgs(args);
+            logger.debug("Launch arguments: {}", args);
         }
-        return currentEnvProperties;
+
+        // Set slow motion if specified (for debugging)
+        String slowMo = prop.getProperty("slow_motion");
+        if (slowMo != null && !slowMo.isEmpty()) {
+            try {
+                double slowMotionValue = Double.parseDouble(slowMo);
+                if (slowMotionValue > 0) {
+                    launchOptions.setSlowMo(slowMotionValue);
+                    logger.info("Slow motion enabled: {}ms per action", slowMotionValue);
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid slow_motion value: {}", slowMo);
+            }
+        }
+
+        return launchOptions;
     }
 
-    private String getUrl() {
-            return currentEnvProperties.getProperty("Url");
+    /**
+     * Create browser context with configuration
+     */
+    private BrowserContext createBrowserContext(Browser browser, String locale, String windowSize) {
+        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions()
+                .setLocale(locale)
+                .setViewportSize(parseViewportSize(windowSize));
+
+        // Set user agent if specified
+        String userAgent = prop.getProperty("user_agent");
+        if (userAgent != null && !userAgent.isEmpty()) {
+            contextOptions.setUserAgent(userAgent);
+        }
+
+        // Set geolocation if specified
+        String latitude = prop.getProperty("geolocation_latitude");
+        String longitude = prop.getProperty("geolocation_longitude");
+        if (latitude != null && longitude != null) {
+            contextOptions.setGeolocation(Double.parseDouble(latitude), Double.parseDouble(longitude));
+            contextOptions.setPermissions(List.of("geolocation"));
+        }
+
+        // Set timezone if specified
+        String timezone = prop.getProperty("timezone");
+        if (timezone != null && !timezone.isEmpty()) {
+            contextOptions.setTimezoneId(timezone);
+        }
+
+        // Accept downloads
+        contextOptions.setAcceptDownloads(true);
+
+        // Set video recording if specified
+        String recordVideo = prop.getProperty("record_video");
+        if ("true".equalsIgnoreCase(recordVideo)) {
+            contextOptions.setRecordVideoDir(java.nio.file.Paths.get("videos/"));
+            logger.info("Video recording enabled. Videos will be saved to: videos/");
+        }
+
+        logger.debug("Browser context options: Locale={}, Viewport={}", locale, windowSize);
+
+        return browser.newContext(contextOptions);
     }
 
+    /**
+     * Get browser type based on browser name
+     */
+    private BrowserType getBrowserType(String browserName, BrowserType.LaunchOptions options) {
+        Playwright playwright = config.getPlaywright();
+
+        return switch (browserName.toLowerCase()) {
+            case "chrome" -> {
+                options.setChannel("chrome");
+                yield playwright.chromium();
+            }
+            case "chromium" -> playwright.chromium();
+            case "firefox" -> playwright.firefox();
+            case "edge" -> {
+                options.setChannel("msedge");
+                yield playwright.chromium();
+            }
+            case "webkit", "safari" -> playwright.webkit();
+            default -> {
+                logger.warn("Unknown browser '{}', defaulting to Chrome", browserName);
+                options.setChannel("chrome");
+                yield playwright.chromium();
+            }
+        };
+    }
+
+    /**
+     * Parse viewport size from string and return ViewportSize object
+     */
+    private ViewportSize parseViewportSize(String windowSize) {
+        try {
+            if (windowSize == null || windowSize.isEmpty()) {
+                return new ViewportSize(1280, 800);
+            }
+
+            String[] parts = windowSize.split("[,x]");
+            if (parts.length != 2) {
+                logger.warn("Invalid window size format '{}', using default 1920x1080", windowSize);
+                return new ViewportSize(1280, 800);
+            }
+
+            int width = Integer.parseInt(parts[0].trim());
+            int height = Integer.parseInt(parts[1].trim());
+
+            // Validate dimensions
+            if (width < 100 || height < 100) {
+                logger.warn("Window size too small {}, using default 1920x1080", windowSize);
+                return new ViewportSize(1280, 800);
+            }
+
+            return new ViewportSize(width, height);
+
+        } catch (NumberFormatException e) {
+            logger.warn("Invalid window size '{}', using default 1920x1080", windowSize);
+            return new ViewportSize(1280, 800);
+        }
+    }
+
+    /**
+     * Setup - Load properties, initialize browser, and navigate to URL
+     */
     public void setUp() throws IOException {
-        loadProperties();
-        currentEnvProperties = env();
-        driver = getBrowser();
-        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(5));
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
-        driver.get(getUrl());
+        try {
+            logger.info("Starting framework setup...");
+
+            loadProperties();
+            initializeBrowser();
+
+            String url = Settings.Url;
+            if (url == null || url.isEmpty()) {
+                throw new IllegalStateException("URL not found in environment properties");
+            }
+
+            logger.info("Navigating to: {}", url);
+            config.getPage().navigate(url);
+            config.getPage().waitForLoadState(LoadState.DOMCONTENTLOADED);
+
+            logger.info("Framework setup completed successfully");
+
+        } catch (Exception e) {
+            logger.error("Setup failed", e);
+            tearDown(); // Cleanup on failure
+            throw e;
+        }
     }
 
+    /**
+     * Teardown - Cleanup resources after each scenario
+     * ✅ FIXED: Now calls cleanupScenario() instead of cleanup()
+     * This closes Browser/Context/Page but keeps Playwright alive
+     */
     public void tearDown() {
-        if (driver != null) {
-            driver.quit();
+        try {
+            logger.info("Starting scenario cleanup...");
+            config.cleanupScenario(); // ✅ Use cleanupScenario() - keeps Playwright alive
+            logger.info("Scenario cleanup completed successfully");
+        } catch (Exception e) {
+            logger.error("Error during scenario cleanup", e);
         }
+    }
+
+    /**
+     * Complete shutdown - Call only at the end of ALL tests (in @AfterAll)
+     * Closes Playwright instance completely
+     */
+    public void shutdownAll() {
+        try {
+            logger.info("Starting complete framework shutdown...");
+            config.cleanupAll(); // ✅ Closes everything including Playwright
+            logger.info("Framework shutdown completed successfully");
+        } catch (Exception e) {
+            logger.error("Error during complete shutdown", e);
+        }
+    }
+
+    // ==================== GETTERS ====================
+
+    public Page getPage() {
+        return config.getPage();
+    }
+
+    public Browser getBrowser() {
+        return config.getBrowser();
+    }
+
+    public BrowserContext getContext() {
+        return config.getContext();
+    }
+
+    public Properties getProperties() {
+        return prop;
+    }
+
+    public Properties getEnvProperties() {
+        return envProperties;
+    }
+
+    public String getEnvironment() {
+        return System.getProperty("env", "alpha");
     }
 }

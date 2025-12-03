@@ -1,6 +1,11 @@
-Initialization/FrameWorkInitialization.class
-pages/FormPage/FormPagePaths.class
-utilze/selenium.class
-pages/FormPage/Form.class
+pages/common/GlobalPaths.class
+config/Settings.class
 pages/HomePage/Login.class
+Initialization/FrameWorkInitialization.class
+utilze/playwright.class
+pages/FormPage/FormPagePaths.class
+config/frameWorkConfig.class
+pages/FormPage/Form.class
+config/ConfigReader.class
+config/EnvironmentConfig.class
 pages/HomePage/LoginPath.class

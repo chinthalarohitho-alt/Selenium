@@ -10,7 +10,7 @@ public class LoginSteps {
     Login login = new Login();
 
     @Given("user should be on the HomePage")
-    public void userShouldBeOnTheHomePage() throws IOException {
+    public void userShouldBeOnTheHomePage() {
         login.validateUserIsOnHomePage();
     }
 
